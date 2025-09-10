@@ -1,87 +1,89 @@
 // @ts-ignore
 import { connect } from 'cloudflare:sockets';
 
-// 配置初始化（避免空值导致错误）
+// 工具函数依赖的变量提前声明
+const byteToHex = Array.from({ length: 256 }, (_, i) => (i + 256).toString(16).slice(1));
+
+// 配置初始化
 let userID = 'ee760db6-9bf6-4130-b193-f822b88b5757';
-const proxyIPs = ['127.0.0.1:443']; // 默认有效IP，实际使用时替换
-const cn_hostnames = ['example.com']; // 默认有效域名，实际使用时替换
+const proxyIPs = ['127.0.0.1:443'];
+const cn_hostnames = ['example.com'];
 let CDNIP = 'www.via.com.sg';
-let IP1 = 'www.via.com';
-let IP2 = 'cis.via.com';
-let IP3 = 'africa.via.com';
-let IP4 = 'www.via.com.sg';
-let IP5 = 'www.viaeurope.at';
-let IP6 = 'www.via.com.mt';
-let IP7 = 'qa.viamiddleeast.com';
-let IP8 = 'usa.via.com';
-let IP9 = 'myanmar.via.com';
-let IP10 = 'www.via.com.tw';
-let IP11 = 'www.viaeurope.ch';
-let IP12 = 'www.via.com.br';
-let IP13 = 'www.visasoutheasteurope.com';
-const ports = [
-  '80', '8080', '8880', '2052', '2082', '2086', '2095',
-  '443', '8443', '2053', '2083', '2087', '2096'
-];
+let IP1 = 'www.via.com', IP2 = 'cis.via.com', IP3 = 'africa.via.com', IP4 = 'www.via.com.sg';
+let IP5 = 'www.viaeurope.at', IP6 = 'www.via.com.mt', IP7 = 'qa.viamiddleeast.com';
+let IP8 = 'usa.via.com', IP9 = 'myanmar.via.com', IP10 = 'www.via.com.tw';
+let IP11 = 'www.viaeurope.ch', IP12 = 'www.via.com.br', IP13 = 'www.viasoutheasteurope.com';
+const ports = ['80', '8080', '8880', '2052', '2082', '2086', '2095', '443', '8443', '2053', '2083', '2087', '2096'];
 const dohURL = 'https://cloudflare-dns.com/dns-query';
 let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-let proxyPort = proxyIP?.match(/:(\d+)$/)?.[1] || '443'; // 安全取值
+let proxyPort = proxyIP?.match(/:(\d+)$/)?.[1] || '443';
 const wsEd = 2506;
 const timeout = 30000;
 
-if (!isValidUUID(userID)) throw new Error('Invalid UUID');
-
-// 工具函数：IP验证（复用逻辑）
+// 工具函数定义
 const isValidIP = ip => {
   const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$/;
+  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:$/;
   return ipv4Regex.test(ip) || ipv6Regex.test(ip.replace(/\[|\]/g, ''));
 };
 
-// 工具函数：UUID验证
 const isValidUUID = u => /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(u);
 
-// 工具函数：安全关闭WebSocket
 const safeCloseWS = ws => {
-  try { if (ws.readyState === 1 || ws.readyState === 2) ws.close(1000, 'Normal closure'); } catch (e) {}
+  try {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
+      ws.close(1000, 'Normal closure');
+    }
+  } catch (e) {}
 };
 
-// 工具函数：Base64转Buffer（兼容处理）
 const base64ToBuf = b64 => {
   try {
     if (!b64) return null;
     b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = b64.length % 4;
-    if (pad) b64 += '='.repeat(4 - pad); // 补全Base64填充符
-    return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
-  } catch { return null; }
+    const padLength = 4 - (b64.length % 4);
+    if (padLength < 4) b64 += '='.repeat(padLength);
+    
+    const binaryStr = atob(b64);
+    const uint8Arr = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      uint8Arr[i] = binaryStr.charCodeAt(i);
+    }
+    return uint8Arr.buffer;
+  } catch (e) {
+    console.error('Base64 decode error:', e);
+    return null;
+  }
 };
 
-// UUID编码工具
-const byteToHex = Array.from({length: 256}, (_, i) => (i + 256).toString(16).slice(1));
-const bytesToUUID = bytes => [
-  byteToHex[bytes[0]] + byteToHex[bytes[1]] + byteToHex[bytes[2]] + byteToHex[bytes[3]],
-  byteToHex[bytes[4]] + byteToHex[bytes[5]],
-  byteToHex[bytes[6]] + byteToHex[bytes[7]],
-  byteToHex[bytes[8]] + byteToHex[bytes[9]],
-  byteToHex[bytes[10]] + byteToHex[bytes[11]] + byteToHex[bytes[12]] + byteToHex[bytes[13]] + byteToHex[bytes[14]] + byteToHex[bytes[15]]
-].join('-').toLowerCase();
+const bytesToUUID = bytes => {
+  return [
+    byteToHex[bytes[0]] + byteToHex[bytes[1]] + byteToHex[bytes[2]] + byteToHex[bytes[3]],
+    byteToHex[bytes[4]] + byteToHex[bytes[5]],
+    byteToHex[bytes[6]] + byteToHex[bytes[7]],
+    byteToHex[bytes[8]] + byteToHex[bytes[9]],
+    byteToHex[bytes[10]] + byteToHex[bytes[11]] + byteToHex[bytes[12]] + byteToHex[bytes[13]] + byteToHex[bytes[14]] + byteToHex[bytes[15]]
+  ].join('-').toLowerCase();
+};
 
-// 解析Xless协议头
+// 核心功能函数
 const parseXlessHeader = async (buf, uuid) => {
   try {
     if (buf.byteLength < 24) return { err: 'Header too short' };
-    const slicedBuffer = new Uint8Array(buf.slice(1, 17));
-    const uuids = uuid.includes(',') ? uuid.split(',') : [uuid];
-    const isValidUser = uuids.some(u => bytesToUUID(slicedBuffer) === u.trim()) || await checkUuidInApiResponse(bytesToUUID(slicedBuffer));
-    if (!isValidUser) return { err: 'Invalid UUID' };
+    
+    const uuidBytes = new Uint8Array(buf.slice(1, 17));
+    const userUuidList = uuid.includes(',') ? uuid.split(',').map(u => u.trim()) : [uuid.trim()];
+    const parsedUuid = bytesToUUID(uuidBytes);
+    const isUuidValid = userUuidList.includes(parsedUuid) || await checkUuidInApiResponse(parsedUuid);
+    if (!isUuidValid) return { err: `Invalid UUID: ${parsedUuid}` };
     
     const optLen = new Uint8Array(buf.slice(17, 18))[0];
     const cmd = new Uint8Array(buf.slice(18 + optLen, 19 + optLen))[0];
     const isUDP = cmd === 2;
     if (![1, 2].includes(cmd)) return { err: `Invalid command: ${cmd}` };
     
-    const port = new DataView(buf.slice(19 + optLen, 21 + optLen)).getUint16(0);
+    const port = new DataView(buf.slice(19 + optLen, 21 + optLen)).getUint16(0, false);
+    
     let addrIdx = 21 + optLen;
     const addrType = new Uint8Array(buf.slice(addrIdx, addrIdx + 1))[0];
     let addr = '', dataIdx = 0;
@@ -91,17 +93,21 @@ const parseXlessHeader = async (buf, uuid) => {
         addr = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 5)).join('.');
         dataIdx = addrIdx + 5;
         break;
-      case 2: // 域名
-        const len = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 2))[0];
-        addr = new TextDecoder().decode(buf.slice(addrIdx + 2, addrIdx + 2 + len));
-        dataIdx = addrIdx + 2 + len;
+      case 2: // Domain
+        const domainLen = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 2))[0];
+        addr = new TextDecoder('utf-8').decode(buf.slice(addrIdx + 2, addrIdx + 2 + domainLen));
+        dataIdx = addrIdx + 2 + domainLen;
         break;
       case 3: // IPv6
-        const dv = new DataView(buf.slice(addrIdx + 1, addrIdx + 17));
-        addr = Array.from({length: 8}, (_, i) => dv.getUint16(i * 2).toString(16)).join(':');
+        const ipv6Bytes = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 17));
+        addr = Array.from({ length: 8 }, (_, i) => {
+          const chunk = (ipv6Bytes[i * 2] << 8) | ipv6Bytes[i * 2 + 1];
+          return chunk.toString(16);
+        }).join(':');
         dataIdx = addrIdx + 17;
         break;
-      default: return { err: `Invalid address type: ${addrType}` };
+      default:
+        return { err: `Invalid address type: ${addrType}` };
     }
     
     return {
@@ -117,96 +123,115 @@ const parseXlessHeader = async (buf, uuid) => {
   }
 };
 
-// 创建WebSocket可读流
 const makeWSReadable = (ws, earlyData, log) => {
-  let canceled = false;
+  let isCanceled = false;
+  
   return new ReadableStream({
-    start(ctl) {
-      const onMsg = e => !canceled && ctl.enqueue(e.data);
-      const onClose = () => {
-        safeCloseWS(ws);
-        !canceled && ctl.close();
+    start(controller) {
+      if (earlyData) controller.enqueue(earlyData);
+      
+      const onMessage = e => {
+        if (!isCanceled) controller.enqueue(e.data);
       };
-      ws.addEventListener('message', onMsg);
+      
+      const onClose = () => {
+        if (!isCanceled) controller.close();
+      };
+      
+      const onError = e => {
+        if (!isCanceled) controller.error(e);
+      };
+      
+      ws.addEventListener('message', onMessage);
       ws.addEventListener('close', onClose);
-      ws.addEventListener('error', e => ctl.error(e));
-      if (earlyData) ctl.enqueue(earlyData);
+      ws.addEventListener('error', onError);
       
       return () => {
-        ws.removeEventListener('message', onMsg);
+        isCanceled = true;
+        ws.removeEventListener('message', onMessage);
         ws.removeEventListener('close', onClose);
+        ws.removeEventListener('error', onError);
       };
     },
     cancel() {
-      canceled = true;
+      isCanceled = true;
       safeCloseWS(ws);
     }
   });
 };
 
-// 远程数据转发到WebSocket
 const remoteToWS = (socket, ws, xlessHeader, log) => {
-  let headerSent = false;
+  let isHeaderSent = false;
+  
   socket.readable.pipeTo(new WritableStream({
     write(chunk) {
-      if (ws.readyState !== 1) throw new Error('WebSocket closed');
-      ws.send(headerSent ? chunk : new Blob([xlessHeader, chunk]).arrayBuffer());
-      headerSent = true;
+      if (ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket closed');
+      const data = isHeaderSent ? chunk : new Blob([xlessHeader, chunk]).arrayBuffer();
+      ws.send(data);
+      isHeaderSent = true;
     },
-    close() { log('Remote connection closed'); },
-    abort(e) { log(`Remote error: ${e.message}`); safeCloseWS(ws); }
-  })).catch(e => { log(`Forward error: ${e.message}`); safeCloseWS(ws); });
+    close() {
+      log('Remote closed');
+      safeCloseWS(ws);
+    },
+    abort(e) {
+      log(`Remote error: ${e.message}`);
+      safeCloseWS(ws);
+    }
+  })).catch(e => {
+    log(`Forward error: ${e.message}`);
+    safeCloseWS(ws);
+  });
 };
 
-// 处理TCP连接
-const handleTCP = async (remoteSocket, addr, port, data, ws, ver, log, ctx) => {
-  async function connectAndWrite(address, port) {
-    // 统一处理IP格式（IPv4/IPv6）
-    if (isValidIP(address)) {
-      address = address.includes(':') ? `[${address}]` : `www.${address}.sslip.io`;
+const handleTCP = async (remoteSocket, addr, port, data, ws, ver, log) => {
+  const connectAndWrite = async (targetAddr, targetPort) => {
+    if (isValidIP(targetAddr)) {
+      targetAddr = targetAddr.includes(':') ? `[${targetAddr}]` : `www.${targetAddr}.sslip.io`;
     }
-    log(`Connecting to ${address}:${port}`);
-    const socket = connect({ hostname: address, port });
+    
+    log(`Connecting to ${targetAddr}:${targetPort}`);
+    const socket = connect({ hostname: targetAddr, port: targetPort });
     const writer = socket.writable.getWriter();
     await writer.write(data);
     writer.releaseLock();
     return socket;
-  }
-
-  let hasIncomingData = false;
-  const retry = async () => {
+  };
+  
+  const retryWithProxy = async () => {
+    if (!proxyIP) return;
     try {
-      const socket = await connectAndWrite(proxyIP || addr, proxyPort || port);
-      socket.closed.catch(e => log(`Retry error: ${e.message}`)).finally(() => safeCloseWS(ws));
+      log(`Retrying with proxy ${proxyIP}:${proxyPort}`);
+      const socket = await connectAndWrite(proxyIP, proxyPort);
+      remoteSocket.value = socket;
       remoteToWS(socket, ws, new Uint8Array([ver[0], 0]), log);
     } catch (e) {
-      log(`Retry failed: ${e.message}`);
+      log(`Proxy retry failed: ${e.message}`);
       safeCloseWS(ws);
     }
   };
-
+  
   try {
     const socket = await connectAndWrite(addr, port);
     remoteSocket.value = socket;
     remoteToWS(socket, ws, new Uint8Array([ver[0], 0]), log);
     
-    // 监听是否有数据流入
+    let hasData = false;
     socket.readable.pipeTo(new WritableStream({
-      write() { hasIncomingData = true; }
+      write() { hasData = true; }
     })).catch(() => {});
     
     socket.closed.catch(e => {
       log(`TCP error: ${e.message}`);
-      if (proxyIP && !hasIncomingData) retry();
+      if (proxyIP && !hasData) retryWithProxy();
     });
   } catch (e) {
     log(`Connection failed: ${e.message}`);
-    if (proxyIP) retry();
+    if (proxyIP) retryWithProxy();
     else safeCloseWS(ws);
   }
 };
 
-// 处理DNS请求
 const handleDNS = async (ws, ver, data, log) => {
   const xlessHeader = new Uint8Array([ver[0], 0]);
   let headerSent = false;
@@ -228,23 +253,24 @@ const handleDNS = async (ws, ver, data, log) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/dns-message' },
           body: chunk,
-          cf: { cacheTtl: 300 } // 缓存DNS结果5分钟
+          cf: { cacheTtl: 300 }
         });
+        
         const buf = await res.arrayBuffer();
         const lenBuf = new Uint8Array([(buf.byteLength >> 8) & 0xff, buf.byteLength & 0xff]);
-        ws.send(headerSent 
+        const responseData = headerSent 
           ? new Blob([lenBuf, buf]).arrayBuffer()
-          : new Blob([xlessHeader, lenBuf, buf]).arrayBuffer()
-        );
+          : new Blob([xlessHeader, lenBuf, buf]).arrayBuffer();
+          
+        ws.send(responseData);
         headerSent = true;
       } catch (e) {
-        log(`DNS query failed: ${e.message}`);
+        log(`DNS error: ${e.message}`);
         safeCloseWS(ws);
       }
     }
   })).catch(e => log(`DNS stream error: ${e.message}`));
 
-  // 写入初始数据
   try {
     const writer = transform.writable.getWriter();
     await writer.write(data);
@@ -254,7 +280,6 @@ const handleDNS = async (ws, ver, data, log) => {
   }
 };
 
-// WebSocket代理主逻辑
 const xlessOverWS = async (request, ctx) => {
   const wsPair = new WebSocketPair();
   const [client, ws] = Object.values(wsPair);
@@ -266,10 +291,9 @@ const xlessOverWS = async (request, ctx) => {
   const readable = makeWSReadable(ws, earlyData, log);
   const remoteSocket = { value: null };
 
-  // 超时控制
-  const timeoutId = setTimeout(() => { 
-    log('Connection timed out'); 
-    safeCloseWS(ws); 
+  const timeoutId = setTimeout(() => {
+    log('Connection timed out');
+    safeCloseWS(ws);
   }, timeout);
   ws.addEventListener('close', () => clearTimeout(timeoutId));
 
@@ -277,9 +301,9 @@ const xlessOverWS = async (request, ctx) => {
     async write(chunk) {
       if (remoteSocket.value) {
         try {
-          const w = remoteSocket.value.writable.getWriter();
-          await w.write(chunk);
-          w.releaseLock();
+          const writer = remoteSocket.value.writable.getWriter();
+          await writer.write(chunk);
+          writer.releaseLock();
         } catch (e) {
           log(`Write failed: ${e.message}`);
           safeCloseWS(ws);
@@ -306,16 +330,22 @@ const xlessOverWS = async (request, ctx) => {
         return handleDNS(ws, parsed.ver, chunk.slice(parsed.dataIdx), log);
       }
 
-      handleTCP(remoteSocket, addr, port, chunk.slice(parsed.dataIdx), ws, parsed.ver, log, ctx);
+      handleTCP(remoteSocket, addr, port, chunk.slice(parsed.dataIdx), ws, parsed.ver, log);
     },
-    abort(e) { log(`Stream aborted: ${e.message}`); safeCloseWS(ws); }
-  })).catch(e => { log(`Pipe error: ${e.message}`); safeCloseWS(ws); });
+    abort(e) {
+      log(`Stream aborted: ${e.message}`);
+      safeCloseWS(ws);
+    }
+  })).catch(e => {
+    log(`Pipe error: ${e.message}`);
+    safeCloseWS(ws);
+  });
 
   ctx.waitUntil(new Promise(resolve => ws.addEventListener('close', resolve)));
   return new Response(null, { status: 101, webSocket: client });
 };
 
-// UUID验证API（占位）
+// 辅助函数
 async function checkUuidInApiResponse(targetUuid) {
   try {
     const apiResponse = await getApiResponse();
@@ -326,30 +356,26 @@ async function checkUuidInApiResponse(targetUuid) {
   }
 }
 
-// API响应获取（占位）
 async function getApiResponse() {
-  return { users: [] }; // 实际使用时实现真实API调用
+  return { users: [] };
 }
 
-// 生成配置页面
 const getXlessConfig = (uuid, hostName) => {
   const isWorkersDev = hostName.includes('workers.dev');
   const baseParams = `encryption=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}`;
   const wsUrl = `xless://${uuid}@${CDNIP}:8880?${baseParams}&security=none#${hostName}`;
   const tlsUrl = `xless://${uuid}@${CDNIP}:8443?${baseParams}&security=tls&sni=${hostName}#${hostName}`;
   
-  // 生成节点列表（减少冗余代码）
   const ipList = [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
   const allNodes = ipList.map((ip, i) => {
     const isTls = i >= 7;
     return `xless://${uuid}@${ip}:${ports[i]}?${baseParams}&security=${isTls ? 'tls&sni='+hostName : 'none'}#CF_V${i+1}_${ip}_${ports[i]}`;
   });
-  const tlsNodes = allNodes.slice(7); // 仅TLS节点
+  const tlsNodes = allNodes.slice(7);
   
   const shareAll = btoa(allNodes.join('\n'));
   const shareTls = btoa(tlsNodes.join('\n'));
   
-  // 页面模板（精简结构）
   return `
   <!DOCTYPE html>
   <html>
@@ -361,7 +387,7 @@ const getXlessConfig = (uuid, hostName) => {
   </head>
   <body>
     <div class="container mt-4">
-      <h1>Cloudflare Xless Proxy V25.5.4</h1>
+      <h1>Cloudflare Xless Proxy</h1>
       <hr>
       <p>ProxyIP: ${proxyIP}:${proxyPort}</p>
       <hr>
@@ -372,15 +398,6 @@ const getXlessConfig = (uuid, hostName) => {
         <div class="limited-width mb-2">${wsUrl}</div>
         <button class="btn btn-primary" onclick="copy('${wsUrl}')">复制链接</button>
       </div>
-      <h5>客户端参数</h5>
-      <ul class="mb-4">
-        <li>地址: 自定义域名/IP</li>
-        <li>端口: ${ports.slice(0,7).join(', ')}</li>
-        <li>UUID: ${uuid}</li>
-        <li>传输: ws</li>
-        <li>路径: /?ed=${wsEd}</li>
-        <li>TLS: 关闭</li>
-      </ul>
       ` : ''}
       
       <h3>${isWorkersDev ? '2. ' : '1. '}WS+TLS节点（加密）</h3>
@@ -388,19 +405,8 @@ const getXlessConfig = (uuid, hostName) => {
         <div class="limited-width mb-2">${tlsUrl}</div>
         <button class="btn btn-primary" onclick="copy('${tlsUrl}')">复制链接</button>
       </div>
-      <h5>客户端参数</h5>
-      <ul class="mb-4">
-        <li>地址: 自定义域名/IP</li>
-        <li>端口: ${ports.slice(7).join(', ')}</li>
-        <li>UUID: ${uuid}</li>
-        <li>传输: ws</li>
-        <li>路径: /?ed=${wsEd}</li>
-        <li>TLS: 开启</li>
-      </ul>
       
       <h3>${isWorkersDev ? '3. ' : '2. '}订阅链接</h3>
-      <p class="text-muted">${isWorkersDev ? '包含13个节点（TLS+非TLS）' : '包含6个TLS节点'}</p>
-      
       <table class="table table-striped mb-3">
         <tbody>
           <tr>
@@ -411,16 +417,6 @@ const getXlessConfig = (uuid, hostName) => {
             <td>通用订阅</td>
             <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'ty' : 'pty'}</td>
             <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'ty' : 'pty'}')">复制</button></td>
-          </tr>
-          <tr>
-            <td>Clash订阅</td>
-            <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'cl' : 'pcl'}</td>
-            <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'cl' : 'pcl'}')">复制</button></td>
-          </tr>
-          <tr>
-            <td>Sing-box订阅</td>
-            <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'sb' : 'psb'}</td>
-            <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'sb' : 'psb'}')">复制</button></td>
           </tr>
         </tbody>
       </table>
@@ -438,20 +434,17 @@ const getXlessConfig = (uuid, hostName) => {
         });
       }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   </body>
   </html>
   `;
 };
 
-// 生成各类订阅配置（减少冗余）
 const generateSubConfig = (uuid, hostName, isTlsOnly = false) => {
   const ipList = [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
   const startIdx = isTlsOnly ? 7 : 0;
   const filteredIPs = ipList.slice(startIdx);
   const filteredPorts = ports.slice(startIdx);
   
-  // 通用订阅（Base64）
   if (isTlsOnly ? uuid.includes('pty') : uuid.includes('ty')) {
     const nodes = filteredIPs.map((ip, i) => {
       const isTls = i + startIdx >= 7;
@@ -461,210 +454,6 @@ const generateSubConfig = (uuid, hostName, isTlsOnly = false) => {
     return btoa(nodes.join('\n'));
   }
   
-  // Clash配置
-  if (isTlsOnly ? uuid.includes('pcl') : uuid.includes('cl')) {
-    const proxies = filteredIPs.map((ip, i) => {
-      const idx = i + startIdx;
-      const isTls = idx >= 7;
-      return `
-- name: CF_V${idx+1}_${ip}_${filteredPorts[i]}
-  type: xless
-  server: ${ip.replace(/[\[\]]/g, '')}
-  port: ${filteredPorts[i]}
-  uuid: ${uuid}
-  udp: false
-  tls: ${isTls}
-  ${isTls ? `servername: ${hostName}` : ''}
-  network: ws
-  ws-opts:
-    path: "/?ed=${wsEd}"
-    headers:
-      Host: ${hostName}
-`;
-    }).join('');
-    
-    const proxyNames = filteredIPs.map((_, i) => `CF_V${i+startIdx+1}_${filteredIPs[i]}_${filteredPorts[i]}`);
-    return `
-port: 7890
-allow-lan: true
-mode: rule
-log-level: info
-unified-delay: true
-global-client-fingerprint: chrome
-dns:
-  enable: false
-  listen: :53
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  default-nameserver: [223.5.5.5, 114.114.114.114, 8.8.8.8]
-  nameserver: [https://dns.alidns.com/dns-query, https://doh.pub/dns-query]
-  fallback: [https://1.0.0.1/dns-query, tls://dns.google]
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
-    ipcidr: [240.0.0.0/4]
-proxies:
-${proxies}
-proxy-groups:
-- name: 负载均衡
-  type: load-balance
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  proxies: [${proxyNames.map(n => `"${n}"`).join(', ')}]
-- name: 自动选择
-  type: url-test
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  tolerance: 50
-  proxies: [${proxyNames.map(n => `"${n}"`).join(', ')}]
-- name: 🌍选择代理
-  type: select
-  proxies: [负载均衡, 自动选择, DIRECT, ${proxyNames.map(n => `"${n}"`).join(', ')}]
-rules:
-  - GEOIP,LAN,DIRECT
-  - GEOIP,CN,DIRECT
-  - MATCH,🌍选择代理
-`;
-  }
-  
-  // Sing-box配置
-  if (isTlsOnly ? uuid.includes('psb') : uuid.includes('sb')) {
-    const outbounds = filteredIPs.map((ip, i) => {
-      const idx = i + startIdx;
-      const isTls = idx >= 7;
-      return `
-    {
-      "server": "${ip}",
-      "server_port": ${filteredPorts[i]},
-      "tag": "CF_V${idx+1}_${ip}_${filteredPorts[i]}",
-      ${isTls ? `"tls": {
-        "enabled": true,
-        "server_name": "${hostName}",
-        "insecure": false,
-        "utls": { "enabled": true, "fingerprint": "chrome" }
-      },` : ''}
-      "packet_encoding": "packetaddr",
-      "transport": {
-        "headers": { "Host": ["${hostName}"] },
-        "path": "/?ed=${wsEd}",
-        "type": "ws"
-      },
-      "type": "xless",
-      "uuid": "${uuid}"
-    }`;
-    }).join(',');
-    
-    const proxyTags = filteredIPs.map((_, i) => `"CF_V${i+startIdx+1}_${filteredIPs[i]}_${filteredPorts[i]}"`);
-    return `{
-  "log": { "disabled": false, "level": "info", "timestamp": true },
-  "experimental": {
-    "clash_api": {
-      "external_controller": "127.0.0.1:9090",
-      "external_ui": "ui",
-      "secret": "",
-      "default_mode": "Rule"
-    },
-    "cache_file": { "enabled": true, "path": "cache.db", "store_fakeip": true }
-  },
-  "dns": {
-    "servers": [
-      { "tag": "proxydns", "address": "tls://8.8.8.8/dns-query", "detour": "select" },
-      { "tag": "localdns", "address": "h3://223.5.5.5/dns-query", "detour": "direct" },
-      { "tag": "dns_fakeip", "address": "fakeip" }
-    ],
-    "rules": [
-      { "outbound": "any", "server": "localdns", "disable_cache": true },
-      { "clash_mode": "Global", "server": "proxydns" },
-      { "clash_mode": "Direct", "server": "localdns" },
-      { "rule_set": "geosite-cn", "server": "localdns" },
-      { "rule_set": "geosite-geolocation-!cn", "server": "proxydns" },
-      { "rule_set": "geosite-geolocation-!cn", "query_type": ["A", "AAAA"], "server": "dns_fakeip" }
-    ],
-    "fakeip": { "enabled": true, "inet4_range": "198.18.0.0/15", "inet6_range": "fc00::/18" },
-    "independent_cache": true,
-    "final": "proxydns"
-  },
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "address": ["172.19.0.1/30", "fd00::1/126"],
-      "auto_route": true,
-      "strict_route": true,
-      "sniff": true,
-      "sniff_override_destination": true,
-      "domain_strategy": "prefer_ipv4"
-    }
-  ],
-  "outbounds": [
-    {
-      "tag": "select",
-      "type": "selector",
-      "default": "auto",
-      "outbounds": ["auto", ${proxyTags.join(', ')}]
-    },
-    ${outbounds},
-    { "tag": "direct", "type": "direct" },
-    {
-      "tag": "auto",
-      "type": "urltest",
-      "outbounds": [${proxyTags.join(', ')}],
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": "1m",
-      "tolerance": 50
-    }
-  ],
-  "route": {
-    "rule_set": [
-      {
-        "tag": "geosite-geolocation-!cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      },
-      {
-        "tag": "geosite-cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      },
-      {
-        "tag": "geoip-cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      }
-    ],
-    "auto_detect_interface": true,
-    "final": "select",
-    "rules": [
-      { "inbound": "tun-in", "action": "sniff" },
-      { "protocol": "dns", "action": "hijack-dns" },
-      { "port": 443, "network": "udp", "action": "reject" },
-      { "clash_mode": "Direct", "outbound": "direct" },
-      { "clash_mode": "Global", "outbound": "select" },
-      { "rule_set": "geoip-cn", "outbound": "direct" },
-      { "rule_set": "geosite-cn", "outbound": "direct" },
-      { "ip_is_private": true, "outbound": "direct" },
-      { "rule_set": "geosite-geolocation-!cn", "outbound": "select" }
-    ]
-  },
-  "ntp": {
-    "enabled": true,
-    "server": "time.apple.com",
-    "interval": "30m",
-    "detour": "direct"
-  }
-}`;
-  }
-  
   return '';
 };
 
@@ -672,12 +461,14 @@ rules:
 export default {
   async fetch(request, env, ctx) {
     try {
-      // 从环境变量加载配置（优先级更高）
+      // 从环境变量加载配置
       userID = env.UUID || userID;
       proxyIP = env.PROXYIP || proxyIP;
       CDNIP = env.CDNIP || CDNIP;
-      [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13] = 
-        env.IP_LIST?.split(',') || [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
+      const envIPs = env.IP_LIST?.split(',') || [];
+      if (envIPs.length === 13) {
+        [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13] = envIPs;
+      }
 
       const url = new URL(request.url);
       const pathSegments = url.pathname.split('/').filter(Boolean);
@@ -694,7 +485,7 @@ export default {
       const hostName = url.hostname;
       
       if (uuid && isValidUUID(uuid)) {
-        if (['', 'ty', 'cl', 'sb', 'pty', 'pcl', 'psb'].includes(action)) {
+        if (['', 'ty', 'pty'].includes(action)) {
           const content = action === '' 
             ? getXlessConfig(uuid, hostName)
             : generateSubConfig(uuid, hostName, action.startsWith('p'));
@@ -704,24 +495,22 @@ export default {
         }
       }
       
-      // 处理默认代理（仅当配置了有效主机名）
+      // 处理默认代理
       if (cn_hostnames.length > 0 && cn_hostnames[0] !== 'example.com') {
         const randomHost = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
         const newUrl = `https://${randomHost}${url.pathname}${url.search}`;
         const headers = new Headers(request.headers);
         headers.set('cf-connecting-ip', '1.2.3.4');
         headers.set('x-forwarded-for', '1.2.3.4');
-        headers.set('referer', 'https://www.google.com/search?q=hello');
         
         try {
           const response = await fetch(new Request(newUrl, {
             method: request.method,
             headers,
             body: request.body,
-            redirect: 'manual' // 禁止自动重定向
+            redirect: 'manual'
           }));
           
-          // 拦截重定向避免循环
           if ([301, 302, 307, 308].includes(response.status)) {
             return new Response('Redirect not allowed', { status: 403 });
           }
@@ -731,7 +520,7 @@ export default {
         }
       }
       
-      // 默认返回CF信息
+      // 默认返回信息
       return new Response(JSON.stringify(request.cf, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -740,3 +529,4 @@ export default {
     }
   }
 };
+    
