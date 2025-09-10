@@ -1,3 +1,4 @@
+
 // @ts-ignore
 import { connect } from 'cloudflare:sockets';
 
@@ -1132,4 +1133,58 @@ export default {
       IP7 = env.IP7 || IP7;
       IP8 = env.IP8 || IP8;
       IP9 = env.IP9 || IP9;
-      IP10 = env.IP
+      IP10 = env.IP10 || IP10;
+      IP11 = env.IP11 || IP11;
+      IP12 = env.IP12 || IP12;
+      IP13 = env.IP13 || IP13;
+      const url = new URL(request.url);
+      const path = url.pathname.split('/')[2] || '';
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (upgradeHeader === 'websocket') return await xlessOverWS(request, ctx);
+      
+      const uuid = path;
+      const hostName = url.hostname;
+      switch (url.pathname) {
+        case `/${uuid}`:
+          return new Response(getXlessConfig(uuid, hostName), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+        case `/${uuid}/ty`:
+          return new Response(gettyConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        case `/${uuid}/cl`:
+          return new Response(getclConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        case `/${uuid}/sb`:
+          return new Response(getsbConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        case `/${uuid}/pty`:
+          return new Response(getptyConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        case `/${uuid}/pcl`:
+          return new Response(getpclConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        case `/${uuid}/psb`:
+          return new Response(getpsbConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+        default:
+          if (cn_hostnames[0] !== '') {
+            const randomHost = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
+            const newUrl = `https://${randomHost}${url.pathname}${url.search}`;
+            const headers = new Headers(request.headers);
+            headers.set('cf-connecting-ip', '1.2.3.4');
+            headers.set('x-forwarded-for', '1.2.3.4');
+            headers.set('x-real-ip', '1.2.3.4');
+            headers.set('referer', 'https://www.google.com/search?q=hello');
+            const proxyReq = new Request(newUrl, {
+              method: request.method,
+              headers: headers,
+              body: request.body
+            });
+            const response = await fetch(proxyReq);
+            if ([301, 302].includes(response.status)) {
+              return new Response(null, { status: 403 });
+            }
+            return response;
+          }
+          return new Response(JSON.stringify(request.cf, null, 4), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+      }
+    } catch (e) {
+      return new Response(e.message, { status: 500 });
+    }
+  }
+};
