@@ -1,65 +1,63 @@
-
 // @ts-ignore
 import { connect } from 'cloudflare:sockets';
 
-// Configuration
+// 配置初始化（避免空值导致错误）
 let userID = 'ee760db6-9bf6-4130-b193-f822b88b5757';
-const proxyIPs = [''];
-const cn_hostnames = [''];
-let CDNIP = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d\u002e\u0073\u0067';
-let IP1 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d';
-let IP2 = '\u0063\u0069\u0073\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d';
-let IP3 = '\u0061\u0066\u0072\u0069\u0063\u0061\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d';
-let IP4 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d\u002e\u0073\u0067';
-let IP5 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u0065\u0075\u0072\u006f\u0070\u0065\u002e\u0061\u0074';
-let IP6 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d\u002e\u006d\u0074';
-let IP7 = '\u0071\u0061\u002e\u0076\u0069\u0073\u0061\u006d\u0069\u0064\u0064\u006c\u0065\u0065\u0061\u0073\u0074\u002e\u0063\u006f\u006d';
-let IP8 = '\u0075\u0073\u0061\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d';
-let IP9 = '\u006d\u0079\u0061\u006e\u006d\u0061\u0072\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d';
-let IP10 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d\u002e\u0074\u0077';
-let IP11 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u0065\u0075\u0072\u006f\u0070\u0065\u002e\u0063\u0068';
-let IP12 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u002e\u0063\u006f\u006d\u002e\u0062\u0072';
-let IP13 = '\u0077\u0077\u0077\u002e\u0076\u0069\u0073\u0061\u0073\u006f\u0075\u0074\u0068\u0065\u0061\u0073\u0074\u0065\u0075\u0072\u006f\u0070\u0065\u002e\u0063\u006f\u006d';
-let PT1 = '80';
-let PT2 = '8080';
-let PT3 = '8880';
-let PT4 = '2052';
-let PT5 = '2082';
-let PT6 = '2086';
-let PT7 = '2095';
-let PT8 = '443';
-let PT9 = '8443';
-let PT10 = '2053';
-let PT11 = '2083';
-let PT12 = '2087';
-let PT13 = '2096';
+const proxyIPs = ['127.0.0.1:443']; // 默认有效IP，实际使用时替换
+const cn_hostnames = ['example.com']; // 默认有效域名，实际使用时替换
+let CDNIP = 'www.via.com.sg';
+let IP1 = 'www.via.com';
+let IP2 = 'cis.via.com';
+let IP3 = 'africa.via.com';
+let IP4 = 'www.via.com.sg';
+let IP5 = 'www.viaeurope.at';
+let IP6 = 'www.via.com.mt';
+let IP7 = 'qa.viamiddleeast.com';
+let IP8 = 'usa.via.com';
+let IP9 = 'myanmar.via.com';
+let IP10 = 'www.via.com.tw';
+let IP11 = 'www.viaeurope.ch';
+let IP12 = 'www.via.com.br';
+let IP13 = 'www.viasoutheast europe.com';
+const ports = [
+  '80', '8080', '8880', '2052', '2082', '2086', '2095',
+  '443', '8443', '2053', '2083', '2087', '2096'
+];
 const dohURL = 'https://cloudflare-dns.com/dns-query';
 let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
-let proxyPort = proxyIP.match(/:(\d+)$/) ? proxyIP.match(/:(\d+)$/)[1] : '443';
+let proxyPort = proxyIP?.match(/:(\d+)$/)?.[1] || '443'; // 安全取值
 const wsEd = 2506;
 const timeout = 30000;
 
 if (!isValidUUID(userID)) throw new Error('Invalid UUID');
 
+// 工具函数：IP验证（复用逻辑）
 const isValidIP = ip => {
   const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
   const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}$/;
   return ipv4Regex.test(ip) || ipv6Regex.test(ip.replace(/\[|\]/g, ''));
 };
 
+// 工具函数：UUID验证
 const isValidUUID = u => /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(u);
 
+// 工具函数：安全关闭WebSocket
 const safeCloseWS = ws => {
-  try { if (ws.readyState === 1 || ws.readyState === 2) ws.close(); } catch (e) {}
+  try { if (ws.readyState === 1 || ws.readyState === 2) ws.close(1000, 'Normal closure'); } catch (e) {}
 };
 
+// 工具函数：Base64转Buffer（兼容处理）
 const base64ToBuf = b64 => {
   try {
+    if (!b64) return null;
     b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad); // 补全Base64填充符
     return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
   } catch { return null; }
 };
 
+// UUID编码工具
 const byteToHex = Array.from({length: 256}, (_, i) => (i + 256).toString(16).slice(1));
 const bytesToUUID = bytes => [
   byteToHex[bytes[0]] + byteToHex[bytes[1]] + byteToHex[bytes[2]] + byteToHex[bytes[3]],
@@ -69,18 +67,19 @@ const bytesToUUID = bytes => [
   byteToHex[bytes[10]] + byteToHex[bytes[11]] + byteToHex[bytes[12]] + byteToHex[bytes[13]] + byteToHex[bytes[14]] + byteToHex[bytes[15]]
 ].join('-').toLowerCase();
 
+// 解析Xless协议头
 const parseXlessHeader = async (buf, uuid) => {
   try {
-    if (buf.byteLength < 24) return { err: 'Too short' };
+    if (buf.byteLength < 24) return { err: 'Header too short' };
     const slicedBuffer = new Uint8Array(buf.slice(1, 17));
     const uuids = uuid.includes(',') ? uuid.split(',') : [uuid];
     const isValidUser = uuids.some(u => bytesToUUID(slicedBuffer) === u.trim()) || await checkUuidInApiResponse(bytesToUUID(slicedBuffer));
-    if (!isValidUser) return { err: 'Bad UUID' };
+    if (!isValidUser) return { err: 'Invalid UUID' };
     
     const optLen = new Uint8Array(buf.slice(17, 18))[0];
     const cmd = new Uint8Array(buf.slice(18 + optLen, 19 + optLen))[0];
     const isUDP = cmd === 2;
-    if (![1, 2].includes(cmd)) return { err: `Bad cmd: ${cmd}` };
+    if (![1, 2].includes(cmd)) return { err: `Invalid command: ${cmd}` };
     
     const port = new DataView(buf.slice(19 + optLen, 21 + optLen)).getUint16(0);
     let addrIdx = 21 + optLen;
@@ -88,21 +87,21 @@ const parseXlessHeader = async (buf, uuid) => {
     let addr = '', dataIdx = 0;
     
     switch (addrType) {
-      case 1:
+      case 1: // IPv4
         addr = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 5)).join('.');
         dataIdx = addrIdx + 5;
         break;
-      case 2:
+      case 2: // 域名
         const len = new Uint8Array(buf.slice(addrIdx + 1, addrIdx + 2))[0];
         addr = new TextDecoder().decode(buf.slice(addrIdx + 2, addrIdx + 2 + len));
         dataIdx = addrIdx + 2 + len;
         break;
-      case 3:
+      case 3: // IPv6
         const dv = new DataView(buf.slice(addrIdx + 1, addrIdx + 17));
         addr = Array.from({length: 8}, (_, i) => dv.getUint16(i * 2).toString(16)).join(':');
         dataIdx = addrIdx + 17;
         break;
-      default: return { err: `Bad addr type: ${addrType}` };
+      default: return { err: `Invalid address type: ${addrType}` };
     }
     
     return {
@@ -114,10 +113,11 @@ const parseXlessHeader = async (buf, uuid) => {
       ver: new Uint8Array(buf.slice(0, 1))
     };
   } catch (e) {
-    return { err: e.message };
+    return { err: `Parse error: ${e.message}` };
   }
 };
 
+// 创建WebSocket可读流
 const makeWSReadable = (ws, earlyData, log) => {
   let canceled = false;
   return new ReadableStream({
@@ -144,23 +144,26 @@ const makeWSReadable = (ws, earlyData, log) => {
   });
 };
 
+// 远程数据转发到WebSocket
 const remoteToWS = (socket, ws, xlessHeader, log) => {
   let headerSent = false;
   socket.readable.pipeTo(new WritableStream({
     write(chunk) {
-      if (ws.readyState !== 1) throw new Error('WS closed');
+      if (ws.readyState !== 1) throw new Error('WebSocket closed');
       ws.send(headerSent ? chunk : new Blob([xlessHeader, chunk]).arrayBuffer());
       headerSent = true;
     },
-    close() { log('Remote closed'); },
-    abort(e) { log(`Remote error: ${e}`); safeCloseWS(ws); }
-  })).catch(e => { log(`Forward error: ${e}`); safeCloseWS(ws); });
+    close() { log('Remote connection closed'); },
+    abort(e) { log(`Remote error: ${e.message}`); safeCloseWS(ws); }
+  })).catch(e => { log(`Forward error: ${e.message}`); safeCloseWS(ws); });
 };
 
+// 处理TCP连接
 const handleTCP = async (remoteSocket, addr, port, data, ws, ver, log, ctx) => {
   async function connectAndWrite(address, port) {
-    if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(address)) {
-      address = `www.${address}.sslip.io`;
+    // 统一处理IP格式（IPv4/IPv6）
+    if (isValidIP(address)) {
+      address = address.includes(':') ? `[${address}]` : `www.${address}.sslip.io`;
     }
     log(`Connecting to ${address}:${port}`);
     const socket = connect({ hostname: address, port });
@@ -172,29 +175,38 @@ const handleTCP = async (remoteSocket, addr, port, data, ws, ver, log, ctx) => {
 
   let hasIncomingData = false;
   const retry = async () => {
-    const socket = await connectAndWrite(proxyIP || addr, proxyPort || port);
-    socket.closed.catch(e => log(`Retry TCP error: ${e}`)).finally(() => safeCloseWS(ws));
-    remoteToWS(socket, ws, new Uint8Array([ver[0], 0]), log);
+    try {
+      const socket = await connectAndWrite(proxyIP || addr, proxyPort || port);
+      socket.closed.catch(e => log(`Retry error: ${e.message}`)).finally(() => safeCloseWS(ws));
+      remoteToWS(socket, ws, new Uint8Array([ver[0], 0]), log);
+    } catch (e) {
+      log(`Retry failed: ${e.message}`);
+      safeCloseWS(ws);
+    }
   };
 
   try {
     const socket = await connectAndWrite(addr, port);
     remoteSocket.value = socket;
     remoteToWS(socket, ws, new Uint8Array([ver[0], 0]), log);
+    
+    // 监听是否有数据流入
     socket.readable.pipeTo(new WritableStream({
       write() { hasIncomingData = true; }
     })).catch(() => {});
+    
     socket.closed.catch(e => {
-      log(`TCP error: ${e}`);
+      log(`TCP error: ${e.message}`);
       if (proxyIP && !hasIncomingData) retry();
     });
   } catch (e) {
-    log(`Connect failed: ${e}`);
+    log(`Connection failed: ${e.message}`);
     if (proxyIP) retry();
     else safeCloseWS(ws);
   }
 };
 
+// 处理DNS请求
 const handleDNS = async (ws, ver, data, log) => {
   const xlessHeader = new Uint8Array([ver[0], 0]);
   let headerSent = false;
@@ -211,24 +223,38 @@ const handleDNS = async (ws, ver, data, log) => {
 
   transform.readable.pipeTo(new WritableStream({
     async write(chunk) {
-      const res = await fetch(dohURL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/dns-message' },
-        body: chunk
-      });
-      const buf = await res.arrayBuffer();
-      const lenBuf = new Uint8Array([(buf.byteLength >> 8) & 0xff, buf.byteLength & 0xff]);
-      ws.send(headerSent 
-        ? new Blob([lenBuf, buf]).arrayBuffer()
-        : new Blob([xlessHeader, lenBuf, buf]).arrayBuffer()
-      );
-      headerSent = true;
+      try {
+        const res = await fetch(dohURL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/dns-message' },
+          body: chunk,
+          cf: { cacheTtl: 300 } // 缓存DNS结果5分钟
+        });
+        const buf = await res.arrayBuffer();
+        const lenBuf = new Uint8Array([(buf.byteLength >> 8) & 0xff, buf.byteLength & 0xff]);
+        ws.send(headerSent 
+          ? new Blob([lenBuf, buf]).arrayBuffer()
+          : new Blob([xlessHeader, lenBuf, buf]).arrayBuffer()
+        );
+        headerSent = true;
+      } catch (e) {
+        log(`DNS query failed: ${e.message}`);
+        safeCloseWS(ws);
+      }
     }
-  })).catch(e => log(`DNS error: ${e}`));
+  })).catch(e => log(`DNS stream error: ${e.message}`));
 
-  transform.writable.getWriter().write(data);
+  // 写入初始数据
+  try {
+    const writer = transform.writable.getWriter();
+    await writer.write(data);
+    writer.releaseLock();
+  } catch (e) {
+    log(`DNS write error: ${e.message}`);
+  }
 };
 
+// WebSocket代理主逻辑
 const xlessOverWS = async (request, ctx) => {
   const wsPair = new WebSocketPair();
   const [client, ws] = Object.values(wsPair);
@@ -240,277 +266,225 @@ const xlessOverWS = async (request, ctx) => {
   const readable = makeWSReadable(ws, earlyData, log);
   const remoteSocket = { value: null };
 
-  const timeoutId = setTimeout(() => { log('Timeout'); safeCloseWS(ws); }, timeout);
+  // 超时控制
+  const timeoutId = setTimeout(() => { 
+    log('Connection timed out'); 
+    safeCloseWS(ws); 
+  }, timeout);
   ws.addEventListener('close', () => clearTimeout(timeoutId));
 
   readable.pipeTo(new WritableStream({
     async write(chunk) {
       if (remoteSocket.value) {
-        const w = remoteSocket.value.writable.getWriter();
-        await w.write(chunk);
-        w.releaseLock();
+        try {
+          const w = remoteSocket.value.writable.getWriter();
+          await w.write(chunk);
+          w.releaseLock();
+        } catch (e) {
+          log(`Write failed: ${e.message}`);
+          safeCloseWS(ws);
+        }
         return;
       }
 
       const parsed = await parseXlessHeader(chunk, userID);
-      if (parsed.err) throw new Error(parsed.err);
+      if (parsed.err) {
+        log(`Header error: ${parsed.err}`);
+        safeCloseWS(ws);
+        return;
+      }
       
       addr = parsed.addr;
       port = parsed.port;
       
       if (parsed.isUDP) {
-        if (port !== 53) throw new Error('UDP only for DNS');
+        if (port !== 53) {
+          log('UDP only allowed for DNS (port 53)');
+          safeCloseWS(ws);
+          return;
+        }
         return handleDNS(ws, parsed.ver, chunk.slice(parsed.dataIdx), log);
       }
 
       handleTCP(remoteSocket, addr, port, chunk.slice(parsed.dataIdx), ws, parsed.ver, log, ctx);
     },
-    abort(e) { log(`Abort: ${e}`); safeCloseWS(ws); }
-  })).catch(e => { log(`Pipe error: ${e}`); safeCloseWS(ws); });
+    abort(e) { log(`Stream aborted: ${e.message}`); safeCloseWS(ws); }
+  })).catch(e => { log(`Pipe error: ${e.message}`); safeCloseWS(ws); });
 
   ctx.waitUntil(new Promise(resolve => ws.addEventListener('close', resolve)));
   return new Response(null, { status: 101, webSocket: client });
 };
 
+// UUID验证API（占位）
 async function checkUuidInApiResponse(targetUuid) {
   try {
     const apiResponse = await getApiResponse();
-    if (!apiResponse) return false;
-    return apiResponse.users.some(user => user.uuid === targetUuid);
+    return apiResponse?.users?.some(user => user.uuid === targetUuid) || false;
   } catch (error) {
-    console.error('API UUID check error:', error);
+    console.error('UUID validation error:', error);
     return false;
   }
 }
 
+// API响应获取（占位）
 async function getApiResponse() {
-  return { users: [] }; // Placeholder: Implement actual API call
+  return { users: [] }; // 实际使用时实现真实API调用
 }
 
+// 生成配置页面
 const getXlessConfig = (uuid, hostName) => {
-  const wXlessWs = `\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${CDNIP}:8880?encryption=none&security=none&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#${hostName}`;
-  const pXlessWsTls = `\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${CDNIP}:8443?encryption=none&security=tls&type=ws&host=${hostName}&sni=${hostName}&fp=randomized&path=%2F%3Fed%3D${wsEd}#${hostName}`;
-  const note = `甬哥博客地址：https://ygkkk.blogspot.com\n甬哥YouTube频道：https://www.youtube.com/@ygkkk\n甬哥TG电报群组：https://t.me/ygkkktg\n甬哥TG电报频道：https://t.me/ygkkktgpd\n\nProxyIP全局运行中：${proxyIP}:${proxyPort}`;
-  const ty = `https://${hostName}/${uuid}/ty`;
-  const cl = `https://${hostName}/${uuid}/cl`;
-  const sb = `https://${hostName}/${uuid}/sb`;
-  const pty = `https://${hostName}/${uuid}/pty`;
-  const pcl = `https://${hostName}/${uuid}/pcl`;
-  const psb = `https://${hostName}/${uuid}/psb`;
-  const wkXlessShare = btoa(`
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP1}:${PT1}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V1_${IP1}_${PT1}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP2}:${PT2}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V2_${IP2}_${PT2}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP3}:${PT3}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V3_${IP3}_${PT3}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP4}:${PT4}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V4_${IP4}_${PT4}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP5}:${PT5}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V5_${IP5}_${PT5}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP6}:${PT6}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V6_${IP6}_${PT6}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP7}:${PT7}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V7_${IP7}_${PT7}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP8}:${PT8}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V8_${IP8}_${PT8}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP9}:${PT9}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V9_${IP9}_${PT9}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP10}:${PT10}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V10_${IP10}_${PT10}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP11}:${PT11}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V11_${IP11}_${PT11}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP12}:${PT12}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V12_${IP12}_${PT12}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP13}:${PT13}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V13_${IP13}_${PT13}
-`);
-  const pgXlessShare = btoa(`
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP8}:${PT8}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V8_${IP8}_${PT8}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP9}:${PT9}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V9_${IP9}_${PT9}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP10}:${PT10}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V10_${IP10}_${PT10}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP11}:${PT11}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V11_${IP11}_${PT11}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP12}:${PT12}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V12_${IP12}_${PT12}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP13}:${PT13}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V13_${IP13}_${PT13}
-`);
-  const noteshow = note.replace(/\n/g, '<br>');
-  const displayHtml = `
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-<style>
-.limited-width { max-width: 200px; overflow: auto; word-wrap: break-word; }
-</style>
-</head>
-<script>
-function copyToClipboard(text) {
-  const input = document.createElement('textarea');
-  input.style.position = 'fixed';
-  input.style.opacity = 0;
-  input.value = text;
-  document.body.appendChild(input);
-  input.select();
-  document.execCommand('Copy');
-  document.body.removeChild(input);
-  alert('已复制到剪贴板');
-}
-</script>
-`;
-  if (hostName.includes('workers.dev')) {
-    return `
-${displayHtml}
-<body>
-<div class="container">
-    <div class="row">
-        <div class="col-md-12">
-            <h1>Cloudflare-workers-xless代理脚本 V25.5.4</h1>
-            <hr>
-            <p>${noteshow}</p>
-            <hr>
-            <br>
-            <h3>1：CF-workers-xless+ws节点</h3>
-            <table class="table">
-                <thead><tr><th>节点特色：</th><th>单节点链接如下：</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td class="limited-width">关闭了TLS加密，无视域名阻断</td>
-                        <td class="limited-width">${wXlessWs}</td>
-                        <td><button class="btn btn-primary" onclick="copyToClipboard('${wXlessWs}')">点击复制链接</button></td>
-                    </tr>
-                </tbody>
-            </table>
-            <h5>客户端参数如下：</h5>
-            <ul>
-                <li>客户端地址(address)：自定义的域名 或 优选域名 或 优选IP 或 反代IP</li>
-                <li>端口(port)：${PT1}, ${PT2}, ${PT3}, ${PT4}, ${PT5}, ${PT6}, ${PT7}</li>
-                <li>用户ID(uuid)：${uuid}</li>
-                <li>传输协议(network)：ws 或 websocket</li>
-                <li>伪装域名(host)：${hostName}</li>
-                <li>路径(path)：/?ed=${wsEd}</li>
-                <li>传输安全(TLS)：关闭</li>
-            </ul>
-            <hr>
-            <br>
-            <h3>2：CF-workers-xless+ws+tls节点</h3>
-            <table class="table">
-                <thead><tr><th>节点特色：</th><th>单节点链接如下：</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td class="limited-width">启用了TLS加密，若支持分片(Fragment)功能，建议开启</td>
-                        <td class="limited-width">${pXlessWsTls}</td>
-                        <td><button class="btn btn-primary" onclick="copyToClipboard('${pXlessWsTls}')">点击复制链接</button></td>
-                    </tr>
-                </tbody>
-            </table>
-            <h5>客户端参数如下：</h5>
-            <ul>
-                <li>客户端地址(address)：自定义的域名 或 优选域名 或 优选IP 或 反代IP</li>
-                <li>端口(port)：${PT8}, ${PT9}, ${PT10}, ${PT11}, ${PT12}, ${PT13}</li>
-                <li>用户ID(uuid)：${uuid}</li>
-                <li>传输协议(network)：ws 或 websocket</li>
-                <li>伪装域名(host)：${hostName}</li>
-                <li>路径(path)：/?ed=${wsEd}</li>
-                <li>传输安全(TLS)：开启</li>
-                <li>跳过证书验证(allowInsecure)：false</li>
-            </ul>
-            <hr>
-            <br>
-            <h3>3：聚合通用、Clash-meta、Sing-box订阅链接</h3>
-            <p>注意：<br>1、默认包含TLS+非TLS共13个端口节点<br>2、当前workers域名需通过代理更新订阅<br>3、如客户端不支持分片功能，TLS节点不可用</p>
-            <table class="table">
-                <thead><tr><th>聚合通用分享链接</th></tr></thead>
-                <tbody><tr><td><button class="btn btn-primary" onclick="copyToClipboard('${wkXlessShare}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>聚合通用订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${ty}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${ty}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>Clash-meta订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${cl}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${cl}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>Sing-box订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${sb}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${sb}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <br>
-        </div>
-    </div>
-</div>
-</body>
-`;
-  } else {
-    return `
-${displayHtml}
-<body>
-<div class="container">
-    <div class="row">
-        <div class="col-md-12">
-            <h1>Cloudflare-workers-xless代理脚本 V25.5.4</h1>
-            <hr>
-            <p>${noteshow}</p>
-            <hr>
-            <br>
-            <h3>1：CF-workers-xless+ws+tls节点</h3>
-            <table class="table">
-                <thead><tr><th>节点特色：</th><th>单节点链接如下：</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td class="limited-width">启用了TLS加密，若支持分片(Fragment)功能，建议开启</td>
-                        <td class="limited-width">${pXlessWsTls}</td>
-                        <td><button class="btn btn-primary" onclick="copyToClipboard('${pXlessWsTls}')">点击复制链接</button></td>
-                    </tr>
-                </tbody>
-            </table>
-            <h5>客户端参数如下：</h5>
-            <ul>
-                <li>客户端地址(address)：自定义的域名 或 优选域名 或 优选IP 或 反代IP</li>
-                <li>端口(port)：${PT8}, ${PT9}, ${PT10}, ${PT11}, ${PT12}, ${PT13}</li>
-                <li>用户ID(uuid)：${uuid}</li>
-                <li>传输协议(network)：ws 或 websocket</li>
-                <li>伪装域名(host)：${hostName}</li>
-                <li>路径(path)：/?ed=${wsEd}</li>
-                <li>传输安全(TLS)：开启</li>
-                <li>跳过证书验证(allowInsecure)：false</li>
-            </ul>
-            <hr>
-            <br>
-            <h3>2：聚合通用、Clash-meta、Sing-box订阅链接</h3>
-            <p>注意：以下订阅链接仅含6个TLS端口节点</p>
-            <table class="table">
-                <thead><tr><th>聚合通用分享链接</th></tr></thead>
-                <tbody><tr><td><button class="btn btn-primary" onclick="copyToClipboard('${pgXlessShare}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>聚合通用订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${pty}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${pty}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>Clash-meta订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${pcl}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${pcl}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <table class="table">
-                <thead><tr><th>Sing-box订阅链接</th></tr></thead>
-                <tbody><tr><td class="limited-width">${psb}</td><td><button class="btn btn-primary" onclick="copyToClipboard('${psb}')">点击复制链接</button></td></tr></tbody>
-            </table>
-            <br>
-        </div>
-    </div>
-</div>
-</body>
-`;
-  }
-};
-
-const gettyConfig = (uuid, hostName) => {
-  return btoa(`
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP1}:${PT1}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V1_${IP1}_${PT1}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP2}:${PT2}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V2_${IP2}_${PT2}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP3}:${PT3}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V3_${IP3}_${PT3}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP4}:${PT4}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V4_${IP4}_${PT4}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP5}:${PT5}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V5_${IP5}_${PT5}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP6}:${PT6}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V6_${IP6}_${PT6}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP7}:${PT7}?encryption=none&security=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V7_${IP7}_${PT7}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP8}:${PT8}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V8_${IP8}_${PT8}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP9}:${PT9}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V9_${IP9}_${PT9}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP10}:${PT10}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V10_${IP10}_${PT10}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP11}:${PT11}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V11_${IP11}_${PT11}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP12}:${PT12}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V12_${IP12}_${PT12}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP13}:${PT13}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V13_${IP13}_${PT13}
-`);
-};
-
-const getclConfig = (uuid, hostName) => {
+  const isWorkersDev = hostName.includes('workers.dev');
+  const baseParams = `encryption=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}`;
+  const wsUrl = `xless://${uuid}@${CDNIP}:8880?${baseParams}&security=none#${hostName}`;
+  const tlsUrl = `xless://${uuid}@${CDNIP}:8443?${baseParams}&security=tls&sni=${hostName}#${hostName}`;
+  
+  // 生成节点列表（减少冗余代码）
+  const ipList = [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
+  const allNodes = ipList.map((ip, i) => {
+    const isTls = i >= 7;
+    return `xless://${uuid}@${ip}:${ports[i]}?${baseParams}&security=${isTls ? 'tls&sni='+hostName : 'none'}#CF_V${i+1}_${ip}_${ports[i]}`;
+  });
+  const tlsNodes = allNodes.slice(7); // 仅TLS节点
+  
+  const shareAll = btoa(allNodes.join('\n'));
+  const shareTls = btoa(tlsNodes.join('\n'));
+  
+  // 页面模板（精简结构）
   return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>.limited-width { max-width: 500px; overflow: auto; word-wrap: break-word; }</style>
+  </head>
+  <body>
+    <div class="container mt-4">
+      <h1>Cloudflare Xless Proxy V25.5.4</h1>
+      <hr>
+      <p>ProxyIP: ${proxyIP}:${proxyPort}</p>
+      <hr>
+      
+      ${isWorkersDev ? `
+      <h3>1. WS节点（无加密）</h3>
+      <div class="mb-3">
+        <div class="limited-width mb-2">${wsUrl}</div>
+        <button class="btn btn-primary" onclick="copy('${wsUrl}')">复制链接</button>
+      </div>
+      <h5>客户端参数</h5>
+      <ul class="mb-4">
+        <li>地址: 自定义域名/IP</li>
+        <li>端口: ${ports.slice(0,7).join(', ')}</li>
+        <li>UUID: ${uuid}</li>
+        <li>传输: ws</li>
+        <li>路径: /?ed=${wsEd}</li>
+        <li>TLS: 关闭</li>
+      </ul>
+      ` : ''}
+      
+      <h3>${isWorkersDev ? '2. ' : '1. '}WS+TLS节点（加密）</h3>
+      <div class="mb-3">
+        <div class="limited-width mb-2">${tlsUrl}</div>
+        <button class="btn btn-primary" onclick="copy('${tlsUrl}')">复制链接</button>
+      </div>
+      <h5>客户端参数</h5>
+      <ul class="mb-4">
+        <li>地址: 自定义域名/IP</li>
+        <li>端口: ${ports.slice(7).join(', ')}</li>
+        <li>UUID: ${uuid}</li>
+        <li>传输: ws</li>
+        <li>路径: /?ed=${wsEd}</li>
+        <li>TLS: 开启</li>
+      </ul>
+      
+      <h3>${isWorkersDev ? '3. ' : '2. '}订阅链接</h3>
+      <p class="text-muted">${isWorkersDev ? '包含13个节点（TLS+非TLS）' : '包含6个TLS节点'}</p>
+      
+      <table class="table table-striped mb-3">
+        <tbody>
+          <tr>
+            <td>通用分享链接</td>
+            <td><button class="btn btn-primary" onclick="copy('${isWorkersDev ? shareAll : shareTls}')">复制</button></td>
+          </tr>
+          <tr>
+            <td>通用订阅</td>
+            <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'ty' : 'pty'}</td>
+            <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'ty' : 'pty'}')">复制</button></td>
+          </tr>
+          <tr>
+            <td>Clash订阅</td>
+            <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'cl' : 'pcl'}</td>
+            <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'cl' : 'pcl'}')">复制</button></td>
+          </tr>
+          <tr>
+            <td>Sing-box订阅</td>
+            <td class="limited-width">https://${hostName}/${uuid}/${isWorkersDev ? 'sb' : 'psb'}</td>
+            <td><button class="btn btn-primary" onclick="copy('https://${hostName}/${uuid}/${isWorkersDev ? 'sb' : 'psb'}')">复制</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <script>
+      function copy(text) {
+        navigator.clipboard.writeText(text).then(() => alert('复制成功')).catch(() => {
+          const el = document.createElement('textarea');
+          el.value = text;
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+          alert('复制成功');
+        });
+      }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+  </html>
+  `;
+};
+
+// 生成各类订阅配置（减少冗余）
+const generateSubConfig = (uuid, hostName, isTlsOnly = false) => {
+  const ipList = [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
+  const startIdx = isTlsOnly ? 7 : 0;
+  const filteredIPs = ipList.slice(startIdx);
+  const filteredPorts = ports.slice(startIdx);
+  
+  // 通用订阅（Base64）
+  if (isTlsOnly ? uuid.includes('pty') : uuid.includes('ty')) {
+    const nodes = filteredIPs.map((ip, i) => {
+      const isTls = i + startIdx >= 7;
+      const params = `encryption=none&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}&security=${isTls ? 'tls&sni='+hostName : 'none'}`;
+      return `xless://${uuid}@${ip}:${filteredPorts[i]}?${params}#CF_V${i+startIdx+1}_${ip}_${filteredPorts[i]}`;
+    });
+    return btoa(nodes.join('\n'));
+  }
+  
+  // Clash配置
+  if (isTlsOnly ? uuid.includes('pcl') : uuid.includes('cl')) {
+    const proxies = filteredIPs.map((ip, i) => {
+      const idx = i + startIdx;
+      const isTls = idx >= 7;
+      return `
+- name: CF_V${idx+1}_${ip}_${filteredPorts[i]}
+  type: xless
+  server: ${ip.replace(/[\[\]]/g, '')}
+  port: ${filteredPorts[i]}
+  uuid: ${uuid}
+  udp: false
+  tls: ${isTls}
+  ${isTls ? `servername: ${hostName}` : ''}
+  network: ws
+  ws-opts:
+    path: "/?ed=${wsEd}"
+    headers:
+      Host: ${hostName}
+`;
+    }).join('');
+    
+    const proxyNames = filteredIPs.map((_, i) => `CF_V${i+startIdx+1}_${filteredIPs[i]}_${filteredPorts[i]}`);
+    return `
 port: 7890
 allow-lan: true
 mode: rule
@@ -523,151 +497,91 @@ dns:
   ipv6: true
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
-  default-nameserver: 
-    - 223.5.5.5
-    - 114.114.114.114
-    - 8.8.8.8
-  nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  fallback:
-    - https://1.0.0.1/dns-query
-    - tls://dns.google
+  default-nameserver: [223.5.5.5, 114.114.114.114, 8.8.8.8]
+  nameserver: [https://dns.alidns.com/dns-query, https://doh.pub/dns-query]
+  fallback: [https://1.0.0.1/dns-query, tls://dns.google]
   fallback-filter:
     geoip: true
     geoip-code: CN
-    ipcidr:
-      - 240.0.0.0/4
+    ipcidr: [240.0.0.0/4]
 proxies:
-${[IP1, IP2, IP3, IP4, IP5, IP6, IP7].map((ip, i) => `
-- name: CF_V${i+1}_${ip}_${[PT1, PT2, PT3, PT4, PT5, PT6, PT7][i]}
-  type: xless
-  server: ${ip.replace(/[\[\]]/g, '')}
-  port: ${[PT1, PT2, PT3, PT4, PT5, PT6, PT7][i]}
-  uuid: ${uuid}
-  udp: false
-  tls: false
-  network: ws
-  ws-opts:
-    path: "/?ed=${wsEd}"
-    headers:
-      Host: ${hostName}
-`).join('')}
-${[IP8, IP9, IP10, IP11, IP12, IP13].map((ip, i) => `
-- name: CF_V${i+8}_${ip}_${[PT8, PT9, PT10, PT11, PT12, PT13][i]}
-  type: xless
-  server: ${ip.replace(/[\[\]]/g, '')}
-  port: ${[PT8, PT9, PT10, PT11, PT12, PT13][i]}
-  uuid: ${uuid}
-  udp: false
-  tls: true
-  network: ws
-  servername: ${hostName}
-  ws-opts:
-    path: "/?ed=${wsEd}"
-    headers:
-      Host: ${hostName}
-`).join('')}
+${proxies}
 proxy-groups:
 - name: 负载均衡
   type: load-balance
   url: http://www.gstatic.com/generate_204
   interval: 300
-  proxies:
-    ${[1,2,3,4,5,6,7,8,9,10,11,12,13].map(i => `CF_V${i}_${[IP1,IP2,IP3,IP4,IP5,IP6,IP7,IP8,IP9,IP10,IP11,IP12,IP13][i-1]}_${[PT1,PT2,PT3,PT4,PT5,PT6,PT7,PT8,PT9,PT10,PT11,PT12,PT13][i-1]}`).join('\n    - ')}
+  proxies: [${proxyNames.map(n => `"${n}"`).join(', ')}]
 - name: 自动选择
   type: url-test
   url: http://www.gstatic.com/generate_204
   interval: 300
   tolerance: 50
-  proxies:
-    ${[1,2,3,4,5,6,7,8,9,10,11,12,13].map(i => `CF_V${i}_${[IP1,IP2,IP3,IP4,IP5,IP6,IP7,IP8,IP9,IP10,IP11,IP12,IP13][i-1]}_${[PT1,PT2,PT3,PT4,PT5,PT6,PT7,PT8,PT9,PT10,PT11,PT12,PT13][i-1]}`).join('\n    - ')}
+  proxies: [${proxyNames.map(n => `"${n}"`).join(', ')}]
 - name: 🌍选择代理
   type: select
-  proxies:
-    - 负载均衡
-    - 自动选择
-    - DIRECT
-    ${[1,2,3,4,5,6,7,8,9,10,11,12,13].map(i => `CF_V${i}_${[IP1,IP2,IP3,IP4,IP5,IP6,IP7,IP8,IP9,IP10,IP11,IP12,IP13][i-1]}_${[PT1,PT2,PT3,PT4,PT5,PT6,PT7,PT8,PT9,PT10,PT11,PT12,PT13][i-1]}`).join('\n    - ')}
+  proxies: [负载均衡, 自动选择, DIRECT, ${proxyNames.map(n => `"${n}"`).join(', ')}]
 rules:
   - GEOIP,LAN,DIRECT
   - GEOIP,CN,DIRECT
   - MATCH,🌍选择代理
 `;
-};
-
-const getsbConfig = (uuid, hostName) => {
-  return `{
-  "log": {
-    "disabled": false,
-    "level": "info",
-    "timestamp": true
-  },
+  }
+  
+  // Sing-box配置
+  if (isTlsOnly ? uuid.includes('psb') : uuid.includes('sb')) {
+    const outbounds = filteredIPs.map((ip, i) => {
+      const idx = i + startIdx;
+      const isTls = idx >= 7;
+      return `
+    {
+      "server": "${ip}",
+      "server_port": ${filteredPorts[i]},
+      "tag": "CF_V${idx+1}_${ip}_${filteredPorts[i]}",
+      ${isTls ? `"tls": {
+        "enabled": true,
+        "server_name": "${hostName}",
+        "insecure": false,
+        "utls": { "enabled": true, "fingerprint": "chrome" }
+      },` : ''}
+      "packet_encoding": "packetaddr",
+      "transport": {
+        "headers": { "Host": ["${hostName}"] },
+        "path": "/?ed=${wsEd}",
+        "type": "ws"
+      },
+      "type": "xless",
+      "uuid": "${uuid}"
+    }`;
+    }).join(',');
+    
+    const proxyTags = filteredIPs.map((_, i) => `"CF_V${i+startIdx+1}_${filteredIPs[i]}_${filteredPorts[i]}"`);
+    return `{
+  "log": { "disabled": false, "level": "info", "timestamp": true },
   "experimental": {
     "clash_api": {
       "external_controller": "127.0.0.1:9090",
       "external_ui": "ui",
-      "external_ui_download_url": "",
-      "external_ui_download_detour": "",
       "secret": "",
       "default_mode": "Rule"
     },
-    "cache_file": {
-      "enabled": true,
-      "path": "cache.db",
-      "store_fakeip": true
-    }
+    "cache_file": { "enabled": true, "path": "cache.db", "store_fakeip": true }
   },
   "dns": {
     "servers": [
-      {
-        "tag": "proxydns",
-        "address": "tls://8.8.8.8/dns-query",
-        "detour": "select"
-      },
-      {
-        "tag": "localdns",
-        "address": "h3://223.5.5.5/dns-query",
-        "detour": "direct"
-      },
-      {
-        "tag": "dns_fakeip",
-        "address": "fakeip"
-      }
+      { "tag": "proxydns", "address": "tls://8.8.8.8/dns-query", "detour": "select" },
+      { "tag": "localdns", "address": "h3://223.5.5.5/dns-query", "detour": "direct" },
+      { "tag": "dns_fakeip", "address": "fakeip" }
     ],
     "rules": [
-      {
-        "outbound": "any",
-        "server": "localdns",
-        "disable_cache": true
-      },
-      {
-        "clash_mode": "Global",
-        "server": "proxydns"
-      },
-      {
-        "clash_mode": "Direct",
-        "server": "localdns"
-      },
-      {
-        "rule_set": "geosite-cn",
-        "server": "localdns"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "server": "proxydns"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "query_type": ["A", "AAAA"],
-        "server": "dns_fakeip"
-      }
+      { "outbound": "any", "server": "localdns", "disable_cache": true },
+      { "clash_mode": "Global", "server": "proxydns" },
+      { "clash_mode": "Direct", "server": "localdns" },
+      { "rule_set": "geosite-cn", "server": "localdns" },
+      { "rule_set": "geosite-geolocation-!cn", "server": "proxydns" },
+      { "rule_set": "geosite-geolocation-!cn", "query_type": ["A", "AAAA"], "server": "dns_fakeip" }
     ],
-    "fakeip": {
-      "enabled": true,
-      "inet4_range": "198.18.0.0/15",
-      "inet6_range": "fc00::/18"
-    },
+    "fakeip": { "enabled": true, "inet4_range": "198.18.0.0/15", "inet6_range": "fc00::/18" },
     "independent_cache": true,
     "final": "proxydns"
   },
@@ -688,59 +602,17 @@ const getsbConfig = (uuid, hostName) => {
       "tag": "select",
       "type": "selector",
       "default": "auto",
-      "outbounds": [
-        "auto",
-        ${[1,2,3,4,5,6,7,8,9,10,11,12,13].map(i => `"CF_V${i}_${[IP1,IP2,IP3,IP4,IP5,IP6,IP7,IP8,IP9,IP10,IP11,IP12,IP13][i-1]}_${[PT1,PT2,PT3,PT4,PT5,PT6,PT7,PT8,PT9,PT10,PT11,PT12,PT13][i-1]}"`).join(',')}
-      ]
+      "outbounds": ["auto", ${proxyTags.join(', ')}]
     },
-    ${[IP1, IP2, IP3, IP4, IP5, IP6, IP7].map((ip, i) => `
-    {
-      "server": "${ip}",
-      "server_port": ${[PT1, PT2, PT3, PT4, PT5, PT6, PT7][i]},
-      "tag": "CF_V${i+1}_${ip}_${[PT1, PT2, PT3, PT4, PT5, PT6, PT7][i]}",
-      "packet_encoding": "packetaddr",
-      "transport": {
-        "headers": { "Host": ["${hostName}"] },
-        "path": "/?ed=${wsEd}",
-        "type": "ws"
-      },
-      "type": "xless",
-      "uuid": "${uuid}"
-    }`).join(',')}
-    ,${[IP8, IP9, IP10, IP11, IP12, IP13].map((ip, i) => `
-    {
-      "server": "${ip}",
-      "server_port": ${[PT8, PT9, PT10, PT11, PT12, PT13][i]},
-      "tag": "CF_V${i+8}_${ip}_${[PT8, PT9, PT10, PT11, PT12, PT13][i]}",
-      "tls": {
-        "enabled": true,
-        "server_name": "${hostName}",
-        "insecure": false,
-        "utls": { "enabled": true, "fingerprint": "chrome" }
-      },
-      "packet_encoding": "packetaddr",
-      "transport": {
-        "headers": { "Host": ["${hostName}"] },
-        "path": "/?ed=${wsEd}",
-        "type": "ws"
-      },
-      "type": "xless",
-      "uuid": "${uuid}"
-    }`).join(',')}
-    ,{
-      "tag": "direct",
-      "type": "direct"
-    },
+    ${outbounds},
+    { "tag": "direct", "type": "direct" },
     {
       "tag": "auto",
       "type": "urltest",
-      "outbounds": [
-        ${[1,2,3,4,5,6,7,8,9,10,11,12,13].map(i => `"CF_V${i}_${[IP1,IP2,IP3,IP4,IP5,IP6,IP7,IP8,IP9,IP10,IP11,IP12,IP13][i-1]}_${[PT1,PT2,PT3,PT4,PT5,PT6,PT7,PT8,PT9,PT10,PT11,PT12,PT13][i-1]}"`).join(',')}
-      ],
+      "outbounds": [${proxyTags.join(', ')}],
       "url": "https://www.gstatic.com/generate_204",
       "interval": "1m",
-      "tolerance": 50,
-      "interrupt_exist_connections": false
+      "tolerance": 50
     }
   ],
   "route": {
@@ -773,418 +645,98 @@ const getsbConfig = (uuid, hostName) => {
     "auto_detect_interface": true,
     "final": "select",
     "rules": [
-      {
-        "inbound": "tun-in",
-        "action": "sniff"
-      },
-      {
-        "protocol": "dns",
-        "action": "hijack-dns"
-      },
-      {
-        "port": 443,
-        "network": "udp",
-        "action": "reject"
-      },
-      {
-        "clash_mode": "Direct",
-        "outbound": "direct"
-      },
-      {
-        "clash_mode": "Global",
-        "outbound": "select"
-      },
-      {
-        "rule_set": "geoip-cn",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geosite-cn",
-        "outbound": "direct"
-      },
-      {
-        "ip_is_private": true,
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "outbound": "select"
-      }
+      { "inbound": "tun-in", "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
+      { "port": 443, "network": "udp", "action": "reject" },
+      { "clash_mode": "Direct", "outbound": "direct" },
+      { "clash_mode": "Global", "outbound": "select" },
+      { "rule_set": "geoip-cn", "outbound": "direct" },
+      { "rule_set": "geosite-cn", "outbound": "direct" },
+      { "ip_is_private": true, "outbound": "direct" },
+      { "rule_set": "geosite-geolocation-!cn", "outbound": "select" }
     ]
   },
   "ntp": {
     "enabled": true,
     "server": "time.apple.com",
-    "server_port": 123,
     "interval": "30m",
     "detour": "direct"
   }
 }`;
-};
-
-const getptyConfig = (uuid, hostName) => {
-  return btoa(`
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP8}:${PT8}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V8_${IP8}_${PT8}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP9}:${PT9}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V9_${IP9}_${PT9}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP10}:${PT10}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V10_${IP10}_${PT10}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP11}:${PT11}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V11_${IP11}_${PT11}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP12}:${PT12}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V12_${IP12}_${PT12}
-\u0078\u006c\u0065\u0073\u0073\u003A//${uuid}@${IP13}:${PT13}?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D${wsEd}#CF_V13_${IP13}_${PT13}
-`);
-};
-
-const getpclConfig = (uuid, hostName) => {
-  return `
-port: 7890
-allow-lan: true
-mode: rule
-log-level: info
-unified-delay: true
-global-client-fingerprint: chrome
-dns:
-  enable: false
-  listen: :53
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  default-nameserver: 
-    - 223.5.5.5
-    - 114.114.114.114
-    - 8.8.8.8
-  nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  fallback:
-    - https://1.0.0.1/dns-query
-    - tls://dns.google
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
-    ipcidr:
-      - 240.0.0.0/4
-proxies:
-${[IP8, IP9, IP10, IP11, IP12, IP13].map((ip, i) => `
-- name: CF_V${i+8}_${ip}_${[PT8, PT9, PT10, PT11, PT12, PT13][i]}
-  type: xless
-  server: ${ip.replace(/[\[\]]/g, '')}
-  port: ${[PT8, PT9, PT10, PT11, PT12, PT13][i]}
-  uuid: ${uuid}
-  udp: false
-  tls: true
-  network: ws
-  servername: ${hostName}
-  ws-opts:
-    path: "/?ed=${wsEd}"
-    headers:
-      Host: ${hostName}
-`).join('')}
-proxy-groups:
-- name: 负载均衡
-  type: load-balance
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  proxies:
-    ${[8,9,10,11,12,13].map(i => `CF_V${i}_${[IP8,IP9,IP10,IP11,IP12,IP13][i-8]}_${[PT8,PT9,PT10,PT11,PT12,PT13][i-8]}`).join('\n    - ')}
-- name: 自动选择
-  type: url-test
-  url: http://www.gstatic.com/generate_204
-  interval: 300
-  tolerance: 50
-  proxies:
-    ${[8,9,10,11,12,13].map(i => `CF_V${i}_${[IP8,IP9,IP10,IP11,IP12,IP13][i-8]}_${[PT8,PT9,PT10,PT11,PT12,PT13][i-8]}`).join('\n    - ')}
-- name: 🌍选择代理
-  type: select
-  proxies:
-    - 负载均衡
-    - 自动选择
-    - DIRECT
-    ${[8,9,10,11,12,13].map(i => `CF_V${i}_${[IP8,IP9,IP10,IP11,IP12,IP13][i-8]}_${[PT8,PT9,PT10,PT11,PT12,PT13][i-8]}`).join('\n    - ')}
-rules:
-  - GEOIP,LAN,DIRECT
-  - GEOIP,CN,DIRECT
-  - MATCH,🌍选择代理
-`;
-};
-
-const getpsbConfig = (uuid, hostName) => {
-  return `{
-  "log": {
-    "disabled": false,
-    "level": "info",
-    "timestamp": true
-  },
-  "experimental": {
-    "clash_api": {
-      "external_controller": "127.0.0.1:9090",
-      "external_ui": "ui",
-      "external_ui_download_url": "",
-      "external_ui_download_detour": "",
-      "secret": "",
-      "default_mode": "Rule"
-    },
-    "cache_file": {
-      "enabled": true,
-      "path": "cache.db",
-      "store_fakeip": true
-    }
-  },
-  "dns": {
-    "servers": [
-      {
-        "tag": "proxydns",
-        "address": "tls://8.8.8.8/dns-query",
-        "detour": "select"
-      },
-      {
-        "tag": "localdns",
-        "address": "h3://223.5.5.5/dns-query",
-        "detour": "direct"
-      },
-      {
-        "tag": "dns_fakeip",
-        "address": "fakeip"
-      }
-    ],
-    "rules": [
-      {
-        "outbound": "any",
-        "server": "localdns",
-        "disable_cache": true
-      },
-      {
-        "clash_mode": "Global",
-        "server": "proxydns"
-      },
-      {
-        "clash_mode": "Direct",
-        "server": "localdns"
-      },
-      {
-        "rule_set": "geosite-cn",
-        "server": "localdns"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "server": "proxydns"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "query_type": ["A", "AAAA"],
-        "server": "dns_fakeip"
-      }
-    ],
-    "fakeip": {
-      "enabled": true,
-      "inet4_range": "198.18.0.0/15",
-      "inet6_range": "fc00::/18"
-    },
-    "independent_cache": true,
-    "final": "proxydns"
-  },
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "address": ["172.19.0.1/30", "fd00::1/126"],
-      "auto_route": true,
-      "strict_route": true,
-      "sniff": true,
-      "sniff_override_destination": true,
-      "domain_strategy": "prefer_ipv4"
-    }
-  ],
-  "outbounds": [
-    {
-      "tag": "select",
-      "type": "selector",
-      "default": "auto",
-      "outbounds": [
-        "auto",
-        ${[8,9,10,11,12,13].map(i => `"CF_V${i}_${[IP8,IP9,IP10,IP11,IP12,IP13][i-8]}_${[PT8,PT9,PT10,PT11,PT12,PT13][i-8]}"`).join(',')}
-      ]
-    },
-    ${[IP8, IP9, IP10, IP11, IP12, IP13].map((ip, i) => `
-    {
-      "server": "${ip}",
-      "server_port": ${[PT8, PT9, PT10, PT11, PT12, PT13][i]},
-      "tag": "CF_V${i+8}_${ip}_${[PT8, PT9, PT10, PT11, PT12, PT13][i]}",
-      "tls": {
-        "enabled": true,
-        "server_name": "${hostName}",
-        "insecure": false,
-        "utls": { "enabled": true, "fingerprint": "chrome" }
-      },
-      "packet_encoding": "packetaddr",
-      "transport": {
-        "headers": { "Host": ["${hostName}"] },
-        "path": "/?ed=${wsEd}",
-        "type": "ws"
-      },
-      "type": "xless",
-      "uuid": "${uuid}"
-    }`).join(',')}
-    ,{
-      "tag": "direct",
-      "type": "direct"
-    },
-    {
-      "tag": "auto",
-      "type": "urltest",
-      "outbounds": [
-        ${[8,9,10,11,12,13].map(i => `"CF_V${i}_${[IP8,IP9,IP10,IP11,IP12,IP13][i-8]}_${[PT8,PT9,PT10,PT11,PT12,PT13][i-8]}"`).join(',')}
-      ],
-      "url": "https://www.gstatic.com/generate_204",
-      "interval": "1m",
-      "tolerance": 50,
-      "interrupt_exist_connections": false
-    }
-  ],
-  "route": {
-    "rule_set": [
-      {
-        "tag": "geosite-geolocation-!cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-!cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      },
-      {
-        "tag": "geosite-cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      },
-      {
-        "tag": "geoip-cn",
-        "type": "remote",
-        "format": "binary",
-        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
-        "download_detour": "select",
-        "update_interval": "1d"
-      }
-    ],
-    "auto_detect_interface": true,
-    "final": "select",
-    "rules": [
-      {
-        "inbound": "tun-in",
-        "action": "sniff"
-      },
-      {
-        "protocol": "dns",
-        "action": "hijack-dns"
-      },
-      {
-        "port": 443,
-        "network": "udp",
-        "action": "reject"
-      },
-      {
-        "clash_mode": "Direct",
-        "outbound": "direct"
-      },
-      {
-        "clash_mode": "Global",
-        "outbound": "select"
-      },
-      {
-        "rule_set": "geoip-cn",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geosite-cn",
-        "outbound": "direct"
-      },
-      {
-        "ip_is_private": true,
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geosite-geolocation-!cn",
-        "outbound": "select"
-      }
-    ]
-  },
-  "ntp": {
-    "enabled": true,
-    "server": "time.apple.com",
-    "server_port": 123,
-    "interval": "30m",
-    "detour": "direct"
   }
-}`;
+  
+  return '';
 };
 
+// 主入口
 export default {
   async fetch(request, env, ctx) {
     try {
+      // 从环境变量加载配置（优先级更高）
       userID = env.UUID || userID;
       proxyIP = env.PROXYIP || proxyIP;
       CDNIP = env.CDNIP || CDNIP;
-      IP1 = env.IP1 || IP1;
-      IP2 = env.IP2 || IP2;
-      IP3 = env.IP3 || IP3;
-      IP4 = env.IP4 || IP4;
-      IP5 = env.IP5 || IP5;
-      IP6 = env.IP6 || IP6;
-      IP7 = env.IP7 || IP7;
-      IP8 = env.IP8 || IP8;
-      IP9 = env.IP9 || IP9;
-      IP10 = env.IP10 || IP10;
-      IP11 = env.IP11 || IP11;
-      IP12 = env.IP12 || IP12;
-      IP13 = env.IP13 || IP13;
+      [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13] = 
+        env.IP_LIST?.split(',') || [IP1, IP2, IP3, IP4, IP5, IP6, IP7, IP8, IP9, IP10, IP11, IP12, IP13];
+
       const url = new URL(request.url);
-      const path = url.pathname.split('/')[2] || '';
+      const pathSegments = url.pathname.split('/').filter(Boolean);
       const upgradeHeader = request.headers.get('Upgrade');
-      if (upgradeHeader === 'websocket') return await xlessOverWS(request, ctx);
       
-      const uuid = path;
-      const hostName = url.hostname;
-      switch (url.pathname) {
-        case `/${uuid}`:
-          return new Response(getXlessConfig(uuid, hostName), { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
-        case `/${uuid}/ty`:
-          return new Response(gettyConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        case `/${uuid}/cl`:
-          return new Response(getclConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        case `/${uuid}/sb`:
-          return new Response(getsbConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        case `/${uuid}/pty`:
-          return new Response(getptyConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        case `/${uuid}/pcl`:
-          return new Response(getpclConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        case `/${uuid}/psb`:
-          return new Response(getpsbConfig(uuid, hostName), { headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
-        default:
-          if (cn_hostnames[0] !== '') {
-            const randomHost = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
-            const newUrl = `https://${randomHost}${url.pathname}${url.search}`;
-            const headers = new Headers(request.headers);
-            headers.set('cf-connecting-ip', '1.2.3.4');
-            headers.set('x-forwarded-for', '1.2.3.4');
-            headers.set('x-real-ip', '1.2.3.4');
-            headers.set('referer', 'https://www.google.com/search?q=hello');
-            const proxyReq = new Request(newUrl, {
-              method: request.method,
-              headers: headers,
-              body: request.body
-            });
-            const response = await fetch(proxyReq);
-            if ([301, 302].includes(response.status)) {
-              return new Response(null, { status: 403 });
-            }
-            return response;
-          }
-          return new Response(JSON.stringify(request.cf, null, 4), {
-            headers: { 'Content-Type': 'application/json' }
-          });
+      // 处理WebSocket连接
+      if (upgradeHeader === 'websocket') {
+        return await xlessOverWS(request, ctx);
       }
+      
+      // 处理配置页面和订阅
+      const uuid = pathSegments[0] || '';
+      const action = pathSegments[1] || '';
+      const hostName = url.hostname;
+      
+      if (uuid && isValidUUID(uuid)) {
+        if (['', 'ty', 'cl', 'sb', 'pty', 'pcl', 'psb'].includes(action)) {
+          const content = action === '' 
+            ? getXlessConfig(uuid, hostName)
+            : generateSubConfig(uuid, hostName, action.startsWith('p'));
+          return new Response(content, { 
+            headers: { 'Content-Type': action === '' ? 'text/html;charset=UTF-8' : 'text/plain;charset=UTF-8' } 
+          });
+        }
+      }
+      
+      // 处理默认代理（仅当配置了有效主机名）
+      if (cn_hostnames.length > 0 && cn_hostnames[0] !== 'example.com') {
+        const randomHost = cn_hostnames[Math.floor(Math.random() * cn_hostnames.length)];
+        const newUrl = `https://${randomHost}${url.pathname}${url.search}`;
+        const headers = new Headers(request.headers);
+        headers.set('cf-connecting-ip', '1.2.3.4');
+        headers.set('x-forwarded-for', '1.2.3.4');
+        headers.set('referer', 'https://www.google.com/search?q=hello');
+        
+        try {
+          const response = await fetch(new Request(newUrl, {
+            method: request.method,
+            headers,
+            body: request.body,
+            redirect: 'manual' // 禁止自动重定向
+          }));
+          
+          // 拦截重定向避免循环
+          if ([301, 302, 307, 308].includes(response.status)) {
+            return new Response('Redirect not allowed', { status: 403 });
+          }
+          return response;
+        } catch (e) {
+          return new Response(`Proxy error: ${e.message}`, { status: 502 });
+        }
+      }
+      
+      // 默认返回CF信息
+      return new Response(JSON.stringify(request.cf, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
     } catch (e) {
-      return new Response(e.message, { status: 500 });
+      return new Response(`Server error: ${e.message}`, { status: 500 });
     }
   }
 };
